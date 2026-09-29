@@ -103,6 +103,14 @@ tbody tr:nth-child(even){background:var(--row-alt);}
 .modal-box{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; max-width:360px; width:100%;}
 .modal-box p{margin:0 0 16px; font-size:15px; line-height:1.6;}
 .modal-actions{display:flex; gap:8px;}
+.hist-overlay{position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:25; padding:20px;}
+.hist-overlay.open{display:flex;}
+.hist-box{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px; max-width:560px; width:100%; max-height:80vh; overflow-y:auto;}
+.hist-box h3{margin:0 0 12px; font-size:16px;}
+.hist-item{border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:8px; font-size:13px;}
+.hist-item .hist-meta{color:var(--ink-soft); font-size:11.5px; margin-bottom:6px; display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap;}
+.hist-item .hist-fields{font-size:12.5px; line-height:1.7; color:var(--ink);}
+.hist-close{display:flex; justify-content:flex-end; margin-top:10px;}
 .toast-info{background:color-mix(in srgb, var(--accent) 15%, var(--surface)); color:var(--ink); border:1px solid var(--accent);}
 .toast-ok{background:color-mix(in srgb, var(--accent) 22%, var(--surface)); color:var(--ink); border:1px solid var(--accent);}
 .toast-err{background:color-mix(in srgb, var(--danger) 18%, var(--surface)); color:var(--ink); border:1px solid var(--danger);}
@@ -159,6 +167,7 @@ tbody tr:nth-child(even){background:var(--row-alt);}
 
     <div class="io-row" style="margin-bottom:16px;">
       <button class="btn-ghost btn-sm" id="exportBtn">تصدير نسخة احتياطية (JSON)</button>
+      <button class="btn-ghost btn-sm" id="globalHistBtn">🕘 سجل كل التعديلات</button>
     </div>
 
     <div class="panel" id="formPanel">
@@ -210,6 +219,14 @@ tbody tr:nth-child(even){background:var(--row-alt);}
       <button class="btn-danger" id="confirmYes">تأكيد</button>
       <button class="btn-ghost" id="confirmNo">إلغاء</button>
     </div>
+  </div>
+</div>
+
+<div class="hist-overlay" id="histOverlay">
+  <div class="hist-box">
+    <h3 id="histTitle">سجل التعديلات</h3>
+    <div id="histBody"></div>
+    <div class="hist-close"><button class="btn-ghost btn-sm" id="histCloseBtn">إغلاق</button></div>
   </div>
 </div>
 
@@ -271,8 +288,8 @@ function render(){
   list.forEach(v=>{
     const tr = document.createElement('tr');
     const actions = isEditor
-      ? `<button class="btn-ghost btn-sm" data-edit="${v.id}">تعديل</button><button class="btn-danger btn-sm" data-del="${v.id}">حذف</button>`
-      : '';
+      ? `<button class="btn-ghost btn-sm" data-edit="${v.id}">تعديل</button><button class="btn-ghost btn-sm" data-hist="${v.id}">🕘</button><button class="btn-danger btn-sm" data-del="${v.id}">حذف</button>`
+      : `<button class="btn-ghost btn-sm" data-hist="${v.id}">🕘</button>`;
     tr.innerHTML = `
       <td>${esc(v.gov)}</td><td>${esc(v.model)}</td>
       <td class="plate">${esc(v.plateNum)}</td><td class="plate">${esc(v.plateLet)}</td>
@@ -302,6 +319,33 @@ function closePanel(){ editingId = null; document.getElementById('formPanel').cl
 document.getElementById('openAddBtn').onclick = ()=> openPanel(null);
 document.getElementById('cancelBtn').onclick = closePanel;
 
+const FIELD_KEYS = ['gov','model','plateNum','plateLet','form','chassis','notes'];
+const FIELD_LABELS = {gov:'المحافظة', model:'النوع/الموديل', plateNum:'أرقام اللوحة', plateLet:'أحرف اللوحة', form:'رقم الاستمارة', chassis:'رقم الهيكل', notes:'ملاحظات'};
+const ACTION_LABELS = {created:'إضافة', updated:'تعديل — الحالة قبل هذا التعديل', deleted:'حذف — آخر بيانات قبل الحذف', restored:'استعادة — الحالة قبل الاستعادة'};
+
+function pickFields(obj){
+  const out = {};
+  FIELD_KEYS.forEach(k=> out[k] = obj[k] || '');
+  return out;
+}
+
+async function logHistory(vehicleId, action, snapshot){
+  try{
+    await db.collection('vehicle_history').add({
+      vehicleId, action, snapshot: pickFields(snapshot),
+      changedBy: auth.currentUser ? auth.currentUser.email : '',
+      changedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }catch(err){ /* history logging failure should not block the main action */ }
+}
+
+function fmtTime(ts){
+  if(ts && typeof ts.toDate === 'function'){
+    return ts.toDate().toLocaleString('ar-SA', {dateStyle:'medium', timeStyle:'short'});
+  }
+  return 'الآن';
+}
+
 document.getElementById('saveBtn').onclick = async ()=>{
   const data = {
     gov: document.getElementById('f_gov').value.trim(),
@@ -320,10 +364,13 @@ document.getElementById('saveBtn').onclick = async ()=>{
   }
   try{
     if(editingId){
+      const oldV = vehicles.find(v=>v.id===editingId);
       await db.collection('vehicles').doc(editingId).update(data);
+      if(oldV) logHistory(editingId, 'updated', oldV);
     }else{
       data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-      await db.collection('vehicles').add(data);
+      const ref = await db.collection('vehicles').add(data);
+      logHistory(ref.id, 'created', data);
     }
     closePanel();
     showToast('تم الحفظ بنجاح.', 'ok');
@@ -335,6 +382,7 @@ document.getElementById('saveBtn').onclick = async ()=>{
 document.getElementById('vBody').addEventListener('click', async e=>{
   const editId = e.target.getAttribute('data-edit');
   const delId = e.target.getAttribute('data-del');
+  const histId = e.target.getAttribute('data-hist');
   if(editId){
     const v = vehicles.find(v=>v.id===editId);
     if(v) openPanel(v);
@@ -346,11 +394,13 @@ document.getElementById('vBody').addEventListener('click', async e=>{
       if(ok){
         try{
           await db.collection('vehicles').doc(delId).delete();
+          logHistory(delId, 'deleted', v);
           showToast('تم حذف المركبة.', 'ok');
         }catch(err){ showToast('تعذّر الحذف: ' + (err.message||''), 'err'); }
       }
     }
   }
+  if(histId) openVehicleHistory(histId);
 });
 
 document.getElementById('searchBox').addEventListener('input', render);
@@ -363,6 +413,93 @@ document.getElementById('exportBtn').onclick = ()=>{
   a.click();
   URL.revokeObjectURL(url);
 };
+
+/* ---- History / audit log ---- */
+function renderHistItems(entries, container){
+  container.innerHTML = '';
+  if(!entries.length){
+    container.innerHTML = '<p style="color:var(--ink-soft); font-size:13px;">لا يوجد سجل بعد.</p>';
+    return;
+  }
+  entries.forEach(entry=>{
+    const div = document.createElement('div');
+    div.className = 'hist-item';
+    const s = entry.snapshot || {};
+    const fieldsHtml = FIELD_KEYS.filter(k=>s[k]).map(k=> `<div><b>${FIELD_LABELS[k]}:</b> ${esc(s[k])}</div>`).join('') || '<i>لا توجد بيانات محفوظة</i>';
+    const restoreBtn = isEditor
+      ? `<button class="btn-ghost btn-sm" data-restore="${entry.vehicleId}" data-entryid="${entry.id}" style="margin-top:6px;">استعادة هذه الحالة</button>`
+      : '';
+    div.innerHTML = `
+      <div class="hist-meta"><span>${ACTION_LABELS[entry.action]||entry.action}</span><span>${esc(entry.changedBy||'')} — ${fmtTime(entry.changedAt)}</span></div>
+      <div class="hist-fields">${fieldsHtml}</div>
+      ${restoreBtn}`;
+    container.appendChild(div);
+  });
+}
+
+async function fetchHistoryEntries(vehicleId){
+  let query = db.collection('vehicle_history');
+  query = vehicleId ? query.where('vehicleId','==',vehicleId) : query.orderBy('changedAt','desc').limit(100);
+  const snap = await query.get();
+  let entries = snap.docs.map(d=> ({id:d.id, ...d.data()}));
+  entries.sort((a,b)=>{
+    const ta = a.changedAt && a.changedAt.toMillis ? a.changedAt.toMillis() : 0;
+    const tb = b.changedAt && b.changedAt.toMillis ? b.changedAt.toMillis() : 0;
+    return tb - ta;
+  });
+  return entries;
+}
+
+async function openVehicleHistory(vehicleId){
+  document.getElementById('histTitle').textContent = 'سجل تعديلات هذه المركبة';
+  const body = document.getElementById('histBody');
+  body.innerHTML = '<p style="color:var(--ink-soft); font-size:13px;">جارٍ التحميل...</p>';
+  document.getElementById('histOverlay').classList.add('open');
+  try{
+    const entries = await fetchHistoryEntries(vehicleId);
+    renderHistItems(entries, body);
+  }catch(err){
+    body.innerHTML = '<p style="color:var(--danger); font-size:13px;">تعذّر تحميل السجل: ' + esc(err.message||'') + '</p>';
+  }
+}
+
+document.getElementById('globalHistBtn').onclick = async ()=>{
+  document.getElementById('histTitle').textContent = 'سجل كل التعديلات (آخر 100)';
+  const body = document.getElementById('histBody');
+  body.innerHTML = '<p style="color:var(--ink-soft); font-size:13px;">جارٍ التحميل...</p>';
+  document.getElementById('histOverlay').classList.add('open');
+  try{
+    const entries = await fetchHistoryEntries(null);
+    renderHistItems(entries, body);
+  }catch(err){
+    body.innerHTML = '<p style="color:var(--danger); font-size:13px;">تعذّر تحميل السجل: ' + esc(err.message||'') + '</p>';
+  }
+};
+
+document.getElementById('histCloseBtn').onclick = ()=> document.getElementById('histOverlay').classList.remove('open');
+
+document.getElementById('histBody').addEventListener('click', async e=>{
+  const vehicleId = e.target.getAttribute('data-restore');
+  if(!vehicleId) return;
+  const entryId = e.target.getAttribute('data-entryid');
+  const ok = await askConfirm('تأكيد استعادة المركبة لهذه الحالة؟ سيتم استبدال بياناتها الحالية.');
+  if(!ok) return;
+  try{
+    const entrySnap = await db.collection('vehicle_history').doc(entryId).get();
+    const snapshot = pickFields((entrySnap.data()||{}).snapshot || {});
+    const current = vehicles.find(v=>v.id===vehicleId);
+    if(current) await logHistory(vehicleId, 'restored', current);
+    await db.collection('vehicles').doc(vehicleId).update({
+      ...snapshot,
+      updatedBy: auth.currentUser ? auth.currentUser.email : '',
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    showToast('تمت الاستعادة بنجاح.', 'ok');
+    document.getElementById('histOverlay').classList.remove('open');
+  }catch(err){
+    showToast('تعذّرت الاستعادة: ' + (err.message||''), 'err');
+  }
+});
 
 /* ---- OCR camera capture (editors only) ---- */
 function extractFields(text){
@@ -398,6 +535,7 @@ document.getElementById('cameraInput').addEventListener('change', async e=>{
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
     const ref = await db.collection('vehicles').add(data);
+    logHistory(ref.id, 'created', data);
     showToast('تمت إضافة المركبة من الصورة. راجع الحقول قبل الإغلاق.', 'ok');
     openPanel({id: ref.id, ...data, gov:'', model:f.model, plateNum:f.plateNum, plateLet:f.plateLet, form:f.form, chassis:f.chassis, notes:data.notes});
   }catch(err){
