@@ -7,12 +7,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
 :root{
   --bg:#F7F5F0; --surface:#FFFFFF; --ink:#1E2430; --ink-soft:#5B6472;
   --accent:#146356; --accent-ink:#FFFFFF; --danger:#A6402A; --border:#DCD7CC;
-  --row-alt:#F1EEE6;
+  --row-alt:#F1EEE6; --gold:#9C7A2E;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px);
   padding-bottom:env(safe-area-inset-bottom,0px);
@@ -21,60 +24,71 @@
   :root:not([data-theme="light"]){
     --bg:#171A1F; --surface:#20242B; --ink:#EDEEF0; --ink-soft:#9AA2AD;
     --accent:#3FA593; --accent-ink:#0E1116; --danger:#E07256; --border:#333944;
-    --row-alt:#262A32;
+    --row-alt:#262A32; --gold:#D9B25C;
   }
-}
-:root[data-theme="dark"]{
-  --bg:#171A1F; --surface:#20242B; --ink:#EDEEF0; --ink-soft:#9AA2AD;
-  --accent:#3FA593; --accent-ink:#0E1116; --danger:#E07256; --border:#333944;
-  --row-alt:#262A32;
 }
 html{scroll-padding-top:env(safe-area-inset-top,0px); height:100%;}
 *{box-sizing:border-box;}
-body{
-  margin:0; height:100%; background:var(--bg); color:var(--ink);
-  font-family:'Cairo',sans-serif; -webkit-font-smoothing:antialiased;
+body{margin:0; height:100%; background:var(--bg); color:var(--ink); font-family:'Cairo',sans-serif; -webkit-font-smoothing:antialiased;}
+
+/* ---- Sign-in screen ---- */
+#signinScreen{
+  min-height:100vh; display:flex; align-items:center; justify-content:center; flex-direction:column;
+  gap:22px; padding:24px; text-align:center;
 }
+#signinScreen .logo{font-size:44px;}
+#signinScreen h1{margin:0; font-size:22px; font-weight:800;}
+#signinScreen p{margin:0; color:var(--ink-soft); font-size:14px; max-width:360px; line-height:1.7;}
+.gbtn{
+  display:flex; align-items:center; gap:10px; background:var(--surface); color:var(--ink);
+  border:1px solid var(--border); border-radius:10px; padding:12px 22px; font-family:inherit;
+  font-size:15px; font-weight:700; cursor:pointer;
+}
+.gbtn:hover{border-color:var(--accent);}
+.gicon{width:20px; height:20px;}
+
+/* ---- App shell ---- */
+#appScreen{display:none;}
+#appScreen.open{display:block;}
 header{
   position:sticky; top:0; z-index:5;
-  padding:calc(14px + env(safe-area-inset-top,0px)) 18px 14px;
+  padding:calc(12px + env(safe-area-inset-top,0px)) 18px 12px;
   background:var(--surface); border-bottom:1px solid var(--border);
   display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
 }
-h1{font-size:19px; font-weight:800; margin:0;}
-.count{color:var(--ink-soft); font-size:13px; font-weight:500;}
-.wrap{max-width:1000px; margin:0 auto; padding:16px 18px 40px;}
+.h-left{display:flex; align-items:center; gap:10px;}
+h1{font-size:18px; font-weight:800; margin:0;}
+.count{color:var(--ink-soft); font-size:12.5px; font-weight:500;}
+.badge{
+  font-size:11px; font-weight:700; padding:3px 9px; border-radius:99px; white-space:nowrap;
+}
+.badge.editor{background:color-mix(in srgb, var(--accent) 20%, var(--surface)); color:var(--accent); border:1px solid var(--accent);}
+.badge.viewer{background:color-mix(in srgb, var(--gold) 18%, var(--surface)); color:var(--gold); border:1px solid var(--gold);}
+.user-chip{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-soft);}
+.user-chip img{width:26px; height:26px; border-radius:50%;}
+.signout{background:transparent; border:none; color:var(--ink-soft); font-size:12.5px; cursor:pointer; text-decoration:underline; font-family:inherit;}
+
+.wrap{max-width:1050px; margin:0 auto; padding:16px 18px 40px;}
 .toolbar{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;}
 input[type=text], input[type=search], select, textarea{
   font-family:inherit; font-size:15px; padding:10px 12px; border-radius:8px;
   border:1px solid var(--border); background:var(--surface); color:var(--ink); width:100%;
 }
-input:focus, select:focus, textarea:focus, button:focus-visible{
-  outline:2px solid var(--accent); outline-offset:1px;
-}
+input:focus, select:focus, textarea:focus, button:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
 .search-box{flex:1; min-width:200px;}
-button{
-  font-family:inherit; font-size:14px; font-weight:600; cursor:pointer;
-  border-radius:8px; border:1px solid transparent; padding:10px 16px;
-}
+button{ font-family:inherit; font-size:14px; font-weight:600; cursor:pointer; border-radius:8px; border:1px solid transparent; padding:10px 16px; }
 .btn-primary{background:var(--accent); color:var(--accent-ink);}
 .btn-ghost{background:transparent; color:var(--ink); border-color:var(--border);}
 .btn-danger{background:transparent; color:var(--danger); border-color:var(--danger);}
 .btn-sm{padding:6px 10px; font-size:13px;}
-.panel{
-  background:var(--surface); border:1px solid var(--border); border-radius:12px;
-  padding:16px; margin-bottom:16px; display:none;
-}
+.panel{ background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:16px; display:none; }
 .panel.open{display:block;}
 .grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
 .grid .full{grid-column:1 / -1;}
 .field label{display:block; font-size:12px; color:var(--ink-soft); margin-bottom:4px; font-weight:600;}
-.panel-actions{display:flex; gap:8px; margin-top:14px; justify-content:flex-start;}
+.panel-actions{display:flex; gap:8px; margin-top:14px;}
 table{width:100%; border-collapse:collapse; font-size:13.5px;}
-th{
-  text-align:right; font-size:11.5px; color:var(--ink-soft); font-weight:700;
-  padding:8px 10px; border-bottom:1px solid var(--border); white-space:nowrap;
-}
+th{ text-align:right; font-size:11.5px; color:var(--ink-soft); font-weight:700; padding:8px 10px; border-bottom:1px solid var(--border); white-space:nowrap; }
 td{padding:9px 10px; border-bottom:1px solid var(--border); vertical-align:middle;}
 tbody tr:nth-child(even){background:var(--row-alt);}
 .table-scroll{overflow-x:auto; border:1px solid var(--border); border-radius:12px;}
@@ -83,7 +97,7 @@ tbody tr:nth-child(even){background:var(--row-alt);}
 .empty{text-align:center; padding:40px 10px; color:var(--ink-soft);}
 .empty b{display:block; color:var(--ink); font-size:16px; margin-bottom:6px;}
 .io-row{display:flex; gap:8px; flex-wrap:wrap;}
-#fileInput{display:none;}
+#fileInput,#cameraInput{display:none;}
 .modal-overlay{position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:20; padding:20px;}
 .modal-overlay.open{display:flex;}
 .modal-box{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; max-width:360px; width:100%;}
@@ -92,71 +106,100 @@ tbody tr:nth-child(even){background:var(--row-alt);}
 .toast-info{background:color-mix(in srgb, var(--accent) 15%, var(--surface)); color:var(--ink); border:1px solid var(--accent);}
 .toast-ok{background:color-mix(in srgb, var(--accent) 22%, var(--surface)); color:var(--ink); border:1px solid var(--accent);}
 .toast-err{background:color-mix(in srgb, var(--danger) 18%, var(--surface)); color:var(--ink); border:1px solid var(--danger);}
+#toast{display:none; margin-bottom:14px; padding:10px 14px; border-radius:8px; font-size:14px; font-weight:600;}
+.spinner{display:inline-block; width:14px; height:14px; border:2px solid currentColor; border-left-color:transparent; border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px; margin-left:6px;}
+@keyframes spin{to{transform:rotate(360deg);}}
 @media (max-width:640px){
   .grid{grid-template-columns:1fr;}
   .table-scroll table{min-width:760px;}
+  header{flex-direction:column; align-items:stretch;}
 }
 </style>
 </head>
 <body>
-<header>
+
+<div id="signinScreen">
+  <div class="logo">🚗</div>
   <h1>سجل المركبات — المنطقة الشرقية</h1>
-  <span class="count" id="countLabel">0 مركبة</span>
-</header>
+  <p>سجّل الدخول بحساب Google الخاص بعملك للاطلاع على سجل الأسطول. الصلاحيات تُدار تلقائيًا حسب حسابك.</p>
+  <button class="gbtn" id="googleSignInBtn">
+    <svg class="gicon" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 3l6-6C34.6 5.1 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.9 18.9 13 24 13c3 0 5.8 1.1 7.9 3l6-6C34.6 6.1 29.6 4 24 4c-7.5 0-13.9 4.2-17.7 10.7z"/><path fill="#4CAF50" d="M24 45c5.5 0 10.4-1.9 14.3-5.1l-6.6-5.6c-2 1.4-4.6 2.2-7.7 2.2-5.2 0-9.6-3.3-11.2-7.9l-6.6 5.1C9.9 40.5 16.4 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.6 5.6C41.5 36.4 44 30.7 44 24c0-1.4-.1-2.7-.4-3.5z"/></svg>
+    تسجيل الدخول بحساب Google
+  </button>
+  <div id="signinErr" style="display:none; color:var(--danger); font-size:13px; max-width:320px;"></div>
+</div>
 
-<div class="wrap">
-  <div class="toolbar">
-    <input class="search-box" type="search" id="searchBox" placeholder="ابحث برقم اللوحة، الأحرف، رقم الاستمارة، رقم الهيكل، أو المحافظة">
-    <button class="btn-ghost" id="cameraBtn">📷 تصوير بطاقة البيانات</button>
-    <button class="btn-primary" id="openAddBtn">+ إضافة يدوية</button>
-  </div>
-  <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;">
-  <div id="toast" style="display:none; margin-bottom:14px; padding:10px 14px; border-radius:8px; font-size:14px; font-weight:600;"></div>
-
-  <div class="io-row" style="margin-bottom:16px;">
-    <button class="btn-ghost btn-sm" id="exportBtn">تصدير نسخة احتياطية (JSON)</button>
-    <button class="btn-ghost btn-sm" id="importBtn">استيراد نسخة احتياطية</button>
-    <input type="file" id="fileInput" accept="application/json">
-  </div>
-
-  <div class="panel" id="formPanel">
-    <div class="grid">
-      <div class="field"><label>المحافظة</label>
-        <input type="text" id="f_gov" list="govList" placeholder="مثال: الدمام">
-        <datalist id="govList">
-          <option value="الدمام"><option value="الخبر"><option value="الظهران">
-          <option value="القطيف"><option value="الجبيل"><option value="الأحساء">
-          <option value="حفر الباطن"><option value="رأس تنورة"><option value="النعيرية">
-          <option value="الخفجي"><option value="بقيق"><option value="قرية العليا">
-        </datalist>
+<div id="appScreen">
+  <header>
+    <div class="h-left">
+      <h1>سجل المركبات — المنطقة الشرقية</h1>
+      <span class="count" id="countLabel">0 مركبة</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:14px;">
+      <div class="user-chip">
+        <img id="userPhoto" src="" alt="">
+        <span id="userName"></span>
+        <span class="badge" id="roleBadge"></span>
       </div>
-      <div class="field"><label>نوع/موديل المركبة</label><input type="text" id="f_model" placeholder="مثال: تويوتا كامري 2022"></div>
-      <div class="field"><label>أرقام اللوحة</label><input type="text" id="f_plateNum" placeholder="مثال: 1234"></div>
-      <div class="field"><label>أحرف اللوحة</label><input type="text" id="f_plateLet" placeholder="مثال: ا ب ج"></div>
-      <div class="field"><label>رقم الاستمارة</label><input type="text" id="f_form"></div>
-      <div class="field"><label>رقم الهيكل</label><input type="text" id="f_chassis"></div>
-      <div class="field full"><label>ملاحظات</label><textarea id="f_notes" rows="4"></textarea></div>
+      <button class="signout" id="signOutBtn">تسجيل خروج</button>
     </div>
-    <div class="panel-actions">
-      <button class="btn-primary" id="saveBtn">حفظ</button>
-      <button class="btn-ghost" id="cancelBtn">إلغاء</button>
-    </div>
-  </div>
+  </header>
 
-  <div class="table-scroll">
-    <table id="vTable">
-      <thead>
-        <tr>
-          <th>المحافظة</th><th>النوع/الموديل</th><th>أرقام اللوحة</th><th>أحرف اللوحة</th>
-          <th>رقم الاستمارة</th><th>رقم الهيكل</th><th>ملاحظات</th><th></th>
-        </tr>
-      </thead>
-      <tbody id="vBody"></tbody>
-    </table>
-  </div>
-  <div class="empty" id="emptyState" style="display:none;">
-    <b>لا توجد مركبات مسجلة بعد</b>
-    اضغط «إضافة مركبة» للبدء بتسجيل الأسطول.
+  <div class="wrap">
+    <div id="toast"></div>
+
+    <div class="toolbar">
+      <input class="search-box" type="search" id="searchBox" placeholder="ابحث برقم اللوحة، الأحرف، رقم الاستمارة، رقم الهيكل، أو المحافظة">
+      <span id="editorTools" style="display:none; gap:10px; flex-wrap:wrap;">
+        <button class="btn-ghost" id="cameraBtn">📷 تصوير بطاقة البيانات</button>
+        <button class="btn-primary" id="openAddBtn">+ إضافة يدوية</button>
+      </span>
+    </div>
+    <input type="file" id="cameraInput" accept="image/*" capture="environment">
+
+    <div class="io-row" style="margin-bottom:16px;">
+      <button class="btn-ghost btn-sm" id="exportBtn">تصدير نسخة احتياطية (JSON)</button>
+    </div>
+
+    <div class="panel" id="formPanel">
+      <div class="grid">
+        <div class="field"><label>المحافظة</label>
+          <input type="text" id="f_gov" list="govList" placeholder="مثال: الدمام">
+          <datalist id="govList">
+            <option value="الدمام"><option value="الخبر"><option value="الظهران">
+            <option value="القطيف"><option value="الجبيل"><option value="الأحساء">
+            <option value="حفر الباطن"><option value="رأس تنورة"><option value="النعيرية">
+            <option value="الخفجي"><option value="بقيق"><option value="قرية العليا">
+          </datalist>
+        </div>
+        <div class="field"><label>نوع/موديل المركبة</label><input type="text" id="f_model" placeholder="مثال: تويوتا كامري 2022"></div>
+        <div class="field"><label>أرقام اللوحة</label><input type="text" id="f_plateNum" placeholder="مثال: 1234"></div>
+        <div class="field"><label>أحرف اللوحة</label><input type="text" id="f_plateLet" placeholder="مثال: ا ب ج"></div>
+        <div class="field"><label>رقم الاستمارة</label><input type="text" id="f_form"></div>
+        <div class="field"><label>رقم الهيكل</label><input type="text" id="f_chassis"></div>
+        <div class="field full"><label>ملاحظات</label><textarea id="f_notes" rows="4"></textarea></div>
+      </div>
+      <div class="panel-actions">
+        <button class="btn-primary" id="saveBtn">حفظ</button>
+        <button class="btn-ghost" id="cancelBtn">إلغاء</button>
+      </div>
+    </div>
+
+    <div class="table-scroll">
+      <table id="vTable">
+        <thead>
+          <tr>
+            <th>المحافظة</th><th>النوع/الموديل</th><th>أرقام اللوحة</th><th>أحرف اللوحة</th>
+            <th>رقم الاستمارة</th><th>رقم الهيكل</th><th>ملاحظات</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="vBody"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="emptyState" style="display:none;">
+      <b>لا توجد مركبات مسجلة بعد</b>
+      <span id="emptyHint">اطلب من أحد المخوّلين بالتعديل إضافة أول مركبة.</span>
+    </div>
   </div>
 </div>
 
@@ -171,9 +214,32 @@ tbody tr:nth-child(even){background:var(--row-alt);}
 </div>
 
 <script>
-const STORE_KEY = 'vehicle_registry_v1';
+const firebaseConfig = {
+  apiKey: "AIzaSyCy-k8wUfcizt8DOrjHtxQpTBnKXOv6ESg",
+  authDomain: "vehicle-register-f1c4b.firebaseapp.com",
+  projectId: "vehicle-register-f1c4b",
+  storageBucket: "vehicle-register-f1c4b.firebasestorage.app",
+  messagingSenderId: "257237487200",
+  appId: "1:257237487200:web:f6b44371811a7f3c56fd05"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+const EDITOR_EMAILS = ['bassam21121169@gmail.com', 'bassam119911@gmail.com'];
+
 let vehicles = [];
+let unsubscribe = null;
+let isEditor = false;
 let editingId = null;
+
+function showToast(msg, kind){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast-' + (kind||'info');
+  t.style.display = 'block';
+}
+function hideToast(){ document.getElementById('toast').style.display = 'none'; }
 
 function askConfirm(msg){
   return new Promise(resolve=>{
@@ -182,25 +248,10 @@ function askConfirm(msg){
     overlay.classList.add('open');
     const yesBtn = document.getElementById('confirmYes');
     const noBtn = document.getElementById('confirmNo');
-    const cleanup = (result)=>{
-      overlay.classList.remove('open');
-      yesBtn.onclick = null; noBtn.onclick = null;
-      resolve(result);
-    };
+    const cleanup = (result)=>{ overlay.classList.remove('open'); yesBtn.onclick=null; noBtn.onclick=null; resolve(result); };
     yesBtn.onclick = ()=> cleanup(true);
     noBtn.onclick = ()=> cleanup(false);
   });
-}
-
-function loadVehicles(){
-  try{
-    const raw = localStorage.getItem(STORE_KEY);
-    vehicles = raw ? JSON.parse(raw) : [];
-  }catch(e){ vehicles = []; }
-}
-function saveVehicles(){
-  try{ localStorage.setItem(STORE_KEY, JSON.stringify(vehicles)); }
-  catch(e){ showToast('تعذر حفظ البيانات في هذا المتصفح.', 'err'); }
 }
 
 function esc(s){
@@ -219,18 +270,14 @@ function render(){
   body.innerHTML = '';
   list.forEach(v=>{
     const tr = document.createElement('tr');
+    const actions = isEditor
+      ? `<button class="btn-ghost btn-sm" data-edit="${v.id}">تعديل</button><button class="btn-danger btn-sm" data-del="${v.id}">حذف</button>`
+      : '';
     tr.innerHTML = `
-      <td>${esc(v.gov)}</td>
-      <td>${esc(v.model)}</td>
-      <td class="plate">${esc(v.plateNum)}</td>
-      <td class="plate">${esc(v.plateLet)}</td>
-      <td>${esc(v.form)}</td>
-      <td>${esc(v.chassis)}</td>
-      <td>${esc(v.notes)}</td>
-      <td class="actions-cell">
-        <button class="btn-ghost btn-sm" data-edit="${v.id}">تعديل</button>
-        <button class="btn-danger btn-sm" data-del="${v.id}">حذف</button>
-      </td>`;
+      <td>${esc(v.gov)}</td><td>${esc(v.model)}</td>
+      <td class="plate">${esc(v.plateNum)}</td><td class="plate">${esc(v.plateLet)}</td>
+      <td>${esc(v.form)}</td><td>${esc(v.chassis)}</td><td>${esc(v.notes)}</td>
+      <td class="actions-cell">${actions}</td>`;
     body.appendChild(tr);
   });
 
@@ -249,17 +296,13 @@ function openPanel(v){
   document.getElementById('f_chassis').value = v ? v.chassis : '';
   document.getElementById('f_notes').value = v ? v.notes : '';
   document.getElementById('formPanel').classList.add('open');
-  document.getElementById('f_gov').focus();
 }
-function closePanel(){
-  editingId = null;
-  document.getElementById('formPanel').classList.remove('open');
-}
+function closePanel(){ editingId = null; document.getElementById('formPanel').classList.remove('open'); }
 
 document.getElementById('openAddBtn').onclick = ()=> openPanel(null);
 document.getElementById('cancelBtn').onclick = closePanel;
 
-document.getElementById('saveBtn').onclick = ()=>{
+document.getElementById('saveBtn').onclick = async ()=>{
   const data = {
     gov: document.getElementById('f_gov').value.trim(),
     model: document.getElementById('f_model').value.trim(),
@@ -268,20 +311,25 @@ document.getElementById('saveBtn').onclick = ()=>{
     form: document.getElementById('f_form').value.trim(),
     chassis: document.getElementById('f_chassis').value.trim(),
     notes: document.getElementById('f_notes').value.trim(),
+    updatedBy: auth.currentUser ? auth.currentUser.email : '',
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   };
   if(!data.plateNum && !data.chassis){
     showToast('الرجاء إدخال أرقام اللوحة أو رقم الهيكل على الأقل.', 'err');
     return;
   }
-  if(editingId){
-    const idx = vehicles.findIndex(v=>v.id===editingId);
-    if(idx>-1) vehicles[idx] = {...vehicles[idx], ...data};
-  }else{
-    vehicles.push({id: Date.now()+'-'+Math.random().toString(36).slice(2,7), ...data});
+  try{
+    if(editingId){
+      await db.collection('vehicles').doc(editingId).update(data);
+    }else{
+      data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      await db.collection('vehicles').add(data);
+    }
+    closePanel();
+    showToast('تم الحفظ بنجاح.', 'ok');
+  }catch(err){
+    showToast('تعذّر الحفظ: ' + (err.message||'خطأ غير متوقع'), 'err');
   }
-  saveVehicles();
-  closePanel();
-  render();
 };
 
 document.getElementById('vBody').addEventListener('click', async e=>{
@@ -296,10 +344,10 @@ document.getElementById('vBody').addEventListener('click', async e=>{
     if(v){
       const ok = await askConfirm(`تأكيد حذف المركبة (لوحة ${v.plateNum||'-'} ${v.plateLet||''})؟`);
       if(ok){
-        vehicles = vehicles.filter(x=>x.id!==delId);
-        saveVehicles();
-        render();
-        showToast('تم حذف المركبة.', 'ok');
+        try{
+          await db.collection('vehicles').doc(delId).delete();
+          showToast('تم حذف المركبة.', 'ok');
+        }catch(err){ showToast('تعذّر الحذف: ' + (err.message||''), 'err'); }
       }
     }
   }
@@ -315,91 +363,84 @@ document.getElementById('exportBtn').onclick = ()=>{
   a.click();
   URL.revokeObjectURL(url);
 };
-document.getElementById('importBtn').onclick = ()=> document.getElementById('fileInput').click();
-document.getElementById('fileInput').addEventListener('change', async e=>{
-  const file = e.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = async ()=>{
-    try{
-      const incoming = JSON.parse(reader.result);
-      if(!Array.isArray(incoming)) throw new Error();
-      const ok = await askConfirm(`سيتم استيراد ${incoming.length} مركبة وإضافتها إلى القائمة الحالية. متابعة؟`);
-      if(ok){
-        vehicles = vehicles.concat(incoming.map(v=>({...v, id: v.id || Date.now()+'-'+Math.random().toString(36).slice(2,7)})));
-        saveVehicles();
-        render();
-        showToast('تم الاستيراد بنجاح.', 'ok');
-      }
-    }catch(err){ showToast('ملف غير صالح.', 'err'); }
-    e.target.value = '';
-  };
-  reader.readAsText(file);
-});
 
-function showToast(msg, kind){
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'toast-' + (kind||'info');
-  t.style.display = 'block';
-}
-function hideToast(){ document.getElementById('toast').style.display = 'none'; }
-
+/* ---- OCR camera capture (editors only) ---- */
 function extractFields(text){
   const r = {model:'', plateNum:'', plateLet:'', form:'', chassis:''};
   let m = text.match(/(?:هيكل|الهيكل|VIN)[^A-Za-z0-9]{0,8}([A-Za-z0-9]{6,17})/i);
-  if(m) r.chassis = m[1];
-  else { m = text.match(/\b[A-HJ-NPR-Z0-9]{11,17}\b/); if(m) r.chassis = m[0]; }
-  m = text.match(/استمارة[^\d]{0,8}(\d{6,12})/);
-  if(m) r.form = m[1];
-  m = text.match(/(?:رقم اللوحة|اللوحة)[^\d]{0,8}(\d{1,4})/);
-  if(m) r.plateNum = m[1];
-  m = text.match(/(?:أحرف اللوحة|الأحرف)[^\u0621-\u064A]{0,8}([\u0621-\u064A](?:\s?[\u0621-\u064A]){0,3})/);
-  if(m) r.plateLet = m[1].trim();
-  m = text.match(/(?:الطراز|الفئة|الموديل)[:\s]{0,6}([^\n\r]{2,30})/);
-  if(m) r.model = m[1].trim();
+  if(m) r.chassis = m[1]; else { m = text.match(/\b[A-HJ-NPR-Z0-9]{11,17}\b/); if(m) r.chassis = m[0]; }
+  m = text.match(/استمارة[^\d]{0,8}(\d{6,12})/); if(m) r.form = m[1];
+  m = text.match(/(?:رقم اللوحة|اللوحة)[^\d]{0,8}(\d{1,4})/); if(m) r.plateNum = m[1];
+  m = text.match(/(?:أحرف اللوحة|الأحرف)[^\u0621-\u064A]{0,8}([\u0621-\u064A](?:\s?[\u0621-\u064A]){0,3})/); if(m) r.plateLet = m[1].trim();
+  m = text.match(/(?:الطراز|الفئة|الموديل)[:\s]{0,6}([^\n\r]{2,30})/); if(m) r.model = m[1].trim();
   return r;
 }
-
-let ocrReady = false;
 document.getElementById('cameraBtn').onclick = ()=> document.getElementById('cameraInput').click();
-
 document.getElementById('cameraInput').addEventListener('change', async e=>{
   const file = e.target.files[0];
   e.target.value = '';
   if(!file) return;
   if(typeof Tesseract === 'undefined'){
-    showToast('تعذّر تحميل محرك القراءة. تحقق من الاتصال بالإنترنت وحاول مرة أخرى.', 'err');
+    showToast('تعذّر تحميل محرك القراءة. تحقق من الاتصال بالإنترنت.', 'err');
     return;
   }
-  showToast(ocrReady ? 'جارٍ قراءة بطاقة البيانات...' : 'جارٍ تجهيز محرك القراءة لأول مرة (يحتاج إنترنت، قد يأخذ دقيقة)...', 'info');
+  showToast('جارٍ قراءة بطاقة البيانات...', 'info');
   try{
     const { data:{ text } } = await Tesseract.recognize(file, 'ara+eng', {
-      logger: msg=>{
-        if(msg.status === 'recognizing text'){
-          showToast(`جارٍ القراءة... ${Math.round((msg.progress||0)*100)}%`, 'info');
-        }
-      }
+      logger: msg=>{ if(msg.status==='recognizing text') showToast(`جارٍ القراءة... ${Math.round((msg.progress||0)*100)}%`, 'info'); }
     });
-    ocrReady = true;
     const f = extractFields(text);
-    const v = {
-      id: Date.now()+'-'+Math.random().toString(36).slice(2,7),
+    const data = {
       gov:'', model:f.model, plateNum:f.plateNum, plateLet:f.plateLet, form:f.form, chassis:f.chassis,
-      notes: 'نص مستخرج تلقائيًا من الصورة (راجعه لو نقص شيء):\n' + text.trim().slice(0,600)
+      notes: 'نص مستخرج تلقائيًا من الصورة (راجعه لو نقص شيء):\n' + text.trim().slice(0,600),
+      updatedBy: auth.currentUser.email,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
-    vehicles.push(v);
-    saveVehicles();
-    render();
-    showToast('تمت إضافة المركبة من الصورة. راجع الحقول وصحّح أي شيء ناقص قبل الحفظ.', 'ok');
-    openPanel(v);
+    const ref = await db.collection('vehicles').add(data);
+    showToast('تمت إضافة المركبة من الصورة. راجع الحقول قبل الإغلاق.', 'ok');
+    openPanel({id: ref.id, ...data, gov:'', model:f.model, plateNum:f.plateNum, plateLet:f.plateLet, form:f.form, chassis:f.chassis, notes:data.notes});
   }catch(err){
-    showToast('تعذّرت قراءة الصورة، جرّب صورة أوضح وإضاءة أفضل، أو أضف المركبة يدويًا.', 'err');
+    showToast('تعذّرت قراءة الصورة، جرّب صورة أوضح أو أضف يدويًا.', 'err');
   }
 });
 
-loadVehicles();
-render();
+/* ---- Auth ---- */
+document.getElementById('googleSignInBtn').onclick = ()=>{
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider).catch(err=>{
+    const box = document.getElementById('signinErr');
+    box.style.display = 'block';
+    box.textContent = 'تعذّر تسجيل الدخول: ' + (err.message || 'حاول مرة أخرى.');
+  });
+};
+document.getElementById('signOutBtn').onclick = ()=> auth.signOut();
+
+auth.onAuthStateChanged(user=>{
+  if(unsubscribe){ unsubscribe(); unsubscribe = null; }
+  if(user){
+    document.getElementById('signinScreen').style.display = 'none';
+    document.getElementById('appScreen').classList.add('open');
+    document.getElementById('userPhoto').src = user.photoURL || '';
+    document.getElementById('userName').textContent = user.displayName || user.email;
+    isEditor = EDITOR_EMAILS.includes(user.email);
+    const badge = document.getElementById('roleBadge');
+    badge.textContent = isEditor ? 'صلاحية تعديل' : 'اطلاع وبحث فقط';
+    badge.className = 'badge ' + (isEditor ? 'editor' : 'viewer');
+    document.getElementById('editorTools').style.display = isEditor ? 'flex' : 'none';
+
+    unsubscribe = db.collection('vehicles').onSnapshot(snap=>{
+      vehicles = snap.docs.map(d=> ({id:d.id, ...d.data()}));
+      render();
+    }, err=>{
+      showToast('تعذّر تحميل البيانات: ' + (err.message||''), 'err');
+    });
+  }else{
+    document.getElementById('signinScreen').style.display = 'flex';
+    document.getElementById('appScreen').classList.remove('open');
+    vehicles = [];
+  }
+});
 </script>
 </body>
 </html>
